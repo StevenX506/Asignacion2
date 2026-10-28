@@ -1,0 +1,413 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analítica de Ventas</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f5f9;
+            color: #202b3c;
+        }
+
+        header {
+            background: #172554;
+            color: white;
+            padding: 25px 6%;
+        }
+
+            header h1 {
+                margin: 0 0 8px;
+            }
+
+            header p {
+                margin: 0;
+                color: #cbd5e1;
+            }
+
+        main {
+            max-width: 1250px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .barra {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 22px;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+            button:hover {
+                background: #1d4ed8;
+            }
+
+            button:disabled {
+                opacity: 0.6;
+                cursor: wait;
+            }
+
+        #estado {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        #error {
+            display: none;
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 14px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .indicadores {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .tarjeta {
+            background: white;
+            padding: 23px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px #0000000a;
+        }
+
+            .tarjeta p {
+                color: #64748b;
+                margin: 0 0 12px;
+            }
+
+            .tarjeta h2 {
+                font-size: clamp(22px, 3vw, 30px);
+                margin: 0;
+                overflow-wrap: anywhere;
+            }
+
+        .secciones {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 20px;
+        }
+
+        .reporte {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px #0000000a;
+            min-width: 0;
+        }
+
+            .reporte h3 {
+                margin: 0 0 18px;
+                font-size: 18px;
+            }
+
+        .tabla-contenedor {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th, td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+
+        th {
+            color: #64748b;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .barra-fondo {
+            background: #e2e8f0;
+            height: 8px;
+            border-radius: 10px;
+            margin-top: 7px;
+            overflow: hidden;
+        }
+
+        .barra-valor {
+            height: 100%;
+            background: #3b82f6;
+            border-radius: 10px;
+        }
+
+        .vacio {
+            color: #64748b;
+            padding: 20px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        @media (max-width: 750px) {
+            .secciones {
+                grid-template-columns: 1fr;
+            }
+
+            header {
+                padding: 22px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Analítica de Ventas</h1>
+        <p>Panel de reportes comerciales conectado a MongoDB</p>
+    </header>
+
+    <main>
+        <div class="barra">
+            <div>
+                <strong>Resumen comercial</strong>
+                <div id="estado">Preparando consulta...</div>
+            </div>
+
+            <button id="actualizar" onclick="cargarReportes()">
+                Actualizar reportes
+            </button>
+        </div>
+
+        <div id="error"></div>
+
+        <section class="indicadores">
+            <article class="tarjeta">
+                <p>Facturación total</p>
+                <h2 id="facturacion">—</h2>
+            </article>
+
+            <article class="tarjeta">
+                <p>Ticket promedio</p>
+                <h2 id="ticket">—</h2>
+            </article>
+        </section>
+
+        <section class="secciones">
+            <article class="reporte">
+                <h3>Productos más vendidos</h3>
+                <div id="productos"></div>
+            </article>
+
+            <article class="reporte">
+                <h3>Ingresos por categoría</h3>
+                <div id="categorias"></div>
+            </article>
+
+            <article class="reporte">
+                <h3>Ventas por ciudad</h3>
+                <div id="ciudades"></div>
+            </article>
+
+            <article class="reporte">
+                <h3>Desempeño por vendedor</h3>
+                <div id="vendedores"></div>
+            </article>
+        </section>
+    </main>
+
+    <footer>
+        API REST · ASP.NET Core · MongoDB Atlas · LINQ
+    </footer>
+
+    <script>
+        const formatoCRC = new Intl.NumberFormat("es-CR", {
+            style: "currency",
+            currency: "CRC",
+            maximumFractionDigits: 2
+        });
+
+        function dinero(valor) {
+            return formatoCRC.format(valor ?? 0);
+        }
+
+        async function consultar(endpoint) {
+            const respuesta = await fetch(endpoint);
+
+            if (!respuesta.ok) {
+                throw new Error(
+                    `Error ${respuesta.status} consultando ${endpoint}`
+                );
+            }
+
+            return respuesta.json();
+        }
+
+        function crearTabla(contenedor, columnas, datos) {
+            const elemento = document.getElementById(contenedor);
+
+            if (!datos || datos.length === 0) {
+                elemento.innerHTML =
+                    '<p class="vacio">No hay datos disponibles.</p>';
+                return;
+            }
+
+            const encabezados = columnas
+                .map(c => `<th>${c.titulo}</th>`)
+                .join("");
+
+            const filas = datos.map(fila => `
+                <tr>
+                    ${columnas.map(c =>
+                        `<td>${c.formato
+                            ? c.formato(fila[c.campo])
+                            : fila[c.campo] ?? ""}</td>`
+                    ).join("")}
+                </tr>
+            `).join("");
+
+            elemento.innerHTML = `
+                <div class="tabla-contenedor">
+                    <table>
+                        <thead><tr>${encabezados}</tr></thead>
+                        <tbody>${filas}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function crearCategorias(datos) {
+            const elemento = document.getElementById("categorias");
+
+            if (!datos || datos.length === 0) {
+                elemento.innerHTML =
+                    '<p class="vacio">No hay datos disponibles.</p>';
+                return;
+            }
+
+            const maximo = Math.max(
+                ...datos.map(d => d.ingresos),
+                1
+            );
+
+            elemento.innerHTML = datos.map(d => `
+                <div style="margin-bottom: 18px">
+                    <div style="display:flex;justify-content:space-between;gap:10px">
+                        <strong>${d.categoria}</strong>
+                        <span>${dinero(d.ingresos)}</span>
+                    </div>
+                    <div class="barra-fondo">
+                        <div class="barra-valor"
+                             style="width:${d.ingresos / maximo * 100}%">
+                        </div>
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        async function cargarReportes() {
+            const boton = document.getElementById("actualizar");
+            const estado = document.getElementById("estado");
+            const error = document.getElementById("error");
+
+            boton.disabled = true;
+            estado.textContent = "Actualizando datos...";
+            error.style.display = "none";
+
+            try {
+                const [
+                    facturacion,
+                    ticket,
+                    productos,
+                    categorias,
+                    ciudades,
+                    vendedores
+                ] = await Promise.all([
+                    consultar("/api/ventas/facturacion-total"),
+                    consultar("/api/ventas/ticket-promedio"),
+                    consultar("/api/ventas/productos-mas-vendidos"),
+                    consultar("/api/ventas/ingresos-por-categoria"),
+                    consultar("/api/ventas/ventas-por-ciudad"),
+                    consultar("/api/ventas/desempeno-por-vendedor")
+                ]);
+
+                document.getElementById("facturacion").textContent =
+                    dinero(facturacion.facturacionTotal);
+
+                document.getElementById("ticket").textContent =
+                    dinero(ticket.ticketPromedio);
+
+                crearTabla("productos", [
+                    { campo: "nombre", titulo: "Producto" },
+                    { campo: "cantidadVendida", titulo: "Unidades" }
+                ], productos);
+
+                crearCategorias(categorias);
+
+                crearTabla("ciudades", [
+                    { campo: "ciudad", titulo: "Ciudad" },
+                    { campo: "cantidadVentas", titulo: "Ventas" },
+                    {
+                        campo: "ingresos",
+                        titulo: "Ingresos",
+                        formato: dinero
+                    }
+                ], ciudades);
+
+                crearTabla("vendedores", [
+                    { campo: "vendedor", titulo: "Vendedor" },
+                    { campo: "cantidadVentas", titulo: "Ventas" },
+                    {
+                        campo: "ingresosTotales",
+                        titulo: "Ingresos",
+                        formato: dinero
+                    },
+                    {
+                        campo: "ticketPromedio",
+                        titulo: "Ticket promedio",
+                        formato: dinero
+                    }
+                ], vendedores);
+
+                estado.textContent =
+                    "Reportes actualizados correctamente.";
+            } catch (e) {
+                console.error(e);
+                error.textContent =
+                    "No fue posible cargar los reportes. " +
+                    "Verifica que la API esté ejecutándose. " + e.message;
+                error.style.display = "block";
+                estado.textContent = "Error al cargar los datos.";
+            } finally {
+                boton.disabled = false;
+            }
+        }
+
+        cargarReportes();
+    </script>
+</body>
+</html>
